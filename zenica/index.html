@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="bs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#16324a">
+<title>Obilaznica Zenica InSAR</title>
+<link rel="manifest" href="manifest.webmanifest">
+
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Zenica InSAR">
+<meta name="description" content="Pomaci obilaznice Zenica (autocesta A1) i okoline iz satelitskih mjerenja Sentinel-1 (InSAR), osvježavanje svaki dan.">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root { --bg:#fff; --fg:#17212b; --mut:#5b6672; --line:#d5dae0; --bar:#16324a; --barfg:#fff; --acc:#1f6fb2; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#141a21; --fg:#e8edf2; --mut:#9aa6b2; --line:#2c3642; --bar:#0e1f2e; --acc:#6bb3ee; } }
+  :root[data-theme="dark"] { --bg:#141a21; --fg:#e8edf2; --mut:#9aa6b2; --line:#2c3642; --bar:#0e1f2e; --acc:#6bb3ee; }
+  * { box-sizing:border-box; }
+  html, body { height:100%; margin:0; background:var(--bg); color:var(--fg); font:15px/1.4 system-ui, "Segoe UI", sans-serif; overscroll-behavior:none; }
+  #top { position:fixed; inset:0 0 auto 0; z-index:1000; background:var(--bar); color:var(--barfg); padding:calc(6px + env(safe-area-inset-top)) 10px 6px; display:flex; gap:8px; align-items:center; }
+  #top b { font-size:15px; white-space:nowrap; }
+  #seg { display:flex; flex:1; background:rgba(255,255,255,.14); border-radius:9px; padding:2px; }
+  #seg button { flex:1; min-height:40px; border:0; background:none; color:#fff; font:600 14px system-ui, sans-serif; border-radius:7px; }
+  #seg button.on { background:#fff; color:#16324a; }
+  #map { position:fixed; inset:calc(54px + env(safe-area-inset-top)) 0 0 0; }
+  #leg { background:#fff; color:#17212b; padding:8px 10px; border-radius:10px; font-size:12.5px; line-height:1.35; box-shadow:0 1px 6px rgba(0,0,0,.4);
+         width:300px; max-width:calc(100vw - 72px); max-height:calc(100vh - 150px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); overflow:auto; }
+  #leg .hd { display:flex; align-items:center; justify-content:space-between; gap:8px; font-weight:700; cursor:pointer; user-select:none; min-height:26px; }
+  #leg .hd span { font-size:12px; color:#5b6672; font-weight:600; }
+  #leg.min .bd { display:none; }
+  #leg .kl { display:flex; align-items:flex-start; gap:7px; margin:4px 0; }
+  #leg .kl.k4 { display:inline-flex; width:48%; margin:2px 0; }
+  #leg i { flex:none; display:inline-block; width:12px; height:12px; border-radius:50%; margin-top:2px; border:1px solid rgba(0,0,0,.45); }
+  #leg .mut { color:#5b6672; }
+  #sheet { position:fixed; left:0; right:0; bottom:0; z-index:1100; background:var(--bg); border-top:1px solid var(--line); border-radius:14px 14px 0 0; box-shadow:0 -3px 14px rgba(0,0,0,.3);
+           padding:10px 14px calc(12px + env(safe-area-inset-bottom)); transform:translateY(105%); transition:transform .22s; max-height:62vh; overflow:auto; }
+  #sheet.on { transform:none; }
+  #sheet h2 { font-size:16px; margin:0 44px 2px 0; }
+  #x { position:absolute; right:8px; top:6px; width:44px; height:44px; border:0; background:none; color:var(--fg); font-size:26px; }
+  .row { display:flex; gap:8px; margin:8px 0; }
+  .st { flex:1; border:1px solid var(--line); border-radius:8px; padding:6px 8px; }
+  .st span { display:block; color:var(--mut); font-size:11.5px; }
+  .st b { font-size:16px; font-variant-numeric:tabular-nums; }
+  .mut { color:var(--mut); font-size:12.5px; }
+  #cw { position:relative; height:210px; }
+  #cw3 { position:relative; height:170px; }
+  #h3 { margin:10px 0 2px; font-size:13.5px; }
+  #skok { color:#9c27b0; font-weight:700; font-size:13px; margin-top:2px; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) #skok { color:#d27be6; } }
+  :root[data-theme="dark"] #skok { color:#d27be6; }
+  #msg { position:fixed; left:50%; top:45%; transform:translate(-50%,-50%); z-index:1200; background:var(--bar); color:#fff; padding:10px 16px; border-radius:10px; font-weight:600; }
+  #seg button { white-space:nowrap; padding:0 4px; }
+  .leaflet-bottom { margin-bottom:env(safe-area-inset-bottom); }
+  #leg .dis { line-height:1.3; margin-top:5px; font-size:11.5px; }
+  @media (max-width:520px) {
+    #top b { display:none; } #seg button { font-size:13.5px; }
+    #leg { font-size:12px; padding:6px 8px; } #leg .kl em { display:none; }
+    #leg .dis { font-size:11px; }
+  }
+  @media (min-width:900px) { #sheet { left:auto; width:460px; right:12px; bottom:12px; border-radius:14px; border:1px solid var(--line); max-height:80vh; } }
+</style>
+<style>
+  html, body { -webkit-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
+  #sheet, #sheet * { -webkit-user-select:text; user-select:text; }
+  #inst { position:fixed; left:10px; right:10px; top:calc(62px + env(safe-area-inset-top)); z-index:1150; background:#fff; color:#17212b; border-radius:12px; box-shadow:0 3px 14px rgba(0,0,0,.35);
+          padding:10px 44px 10px 12px; font-size:13.5px; line-height:1.4; max-width:460px; margin:0 auto; }
+  #inst b { display:block; margin-bottom:2px; } #inst button.ok { margin-top:8px; border:0; background:#16324a; color:#fff; font:600 14px system-ui, sans-serif; border-radius:8px; padding:8px 14px; }
+  #inst .zx { position:absolute; right:4px; top:2px; width:40px; height:40px; border:0; background:none; font-size:24px; color:#5b6672; }
+</style>
+<style>
+  .tb { flex:none; width:40px; min-height:40px; border:0; border-radius:9px; background:rgba(255,255,255,.14); color:#fff; font:700 17px system-ui, sans-serif; }
+  .tb.on { background:#fff; color:#16324a; }
+  #info { position:fixed; inset:0; z-index:1300; background:rgba(0,0,0,.45); display:flex; align-items:center; justify-content:center; padding:16px; }
+  #info[hidden], #prmsg[hidden] { display:none; }
+  #info .box { background:#fff; color:#17212b; border-radius:12px; max-width:560px; width:100%; max-height:85vh; overflow:auto; padding:14px 16px; font-size:13.5px; line-height:1.45; position:relative; }
+  #info h3 { margin:0 40px 6px 0; font-size:16px; } #info dt { font-weight:700; margin-top:7px; } #info dd { margin:1px 0 0 0; color:#33404d; }
+  #info .zx { position:absolute; right:6px; top:4px; width:40px; height:40px; border:0; background:none; font-size:24px; color:#5b6672; }
+  #prmsg { position:fixed; left:50%; transform:translateX(-50%); top:calc(62px + env(safe-area-inset-top)); z-index:1150; background:#16324a; color:#fff; padding:7px 12px; border-radius:9px; font-size:13px; }
+  .kmlab { background:rgba(255,255,255,.85); border:0; box-shadow:none; padding:0 3px; font:700 11px system-ui, sans-serif; color:#5d3a00; }
+  .kmlab:before { display:none; }
+  .ikon { font:700 11px system-ui, sans-serif; color:#111; white-space:nowrap; text-shadow:0 0 2px #fff, 0 0 2px #fff, 0 0 3px #fff; }
+  .ikon b { display:inline-block; width:10px; height:10px; margin-right:3px; vertical-align:-1px; }
+  #csv { margin-top:8px; border:1px solid var(--line); background:var(--bg); color:var(--fg); border-radius:8px; padding:7px 12px; font:600 13px system-ui, sans-serif; }
+  .leaflet-control-layers { font-size:13px; } .leaflet-control-layers-expanded { max-height:60vh; overflow:auto; }
+</style>
+<style>#druga{margin-left:auto;white-space:nowrap;font-size:12.5px;color:var(--barfg);opacity:.85;text-decoration:none;border:1px solid currentColor;border-radius:6px;padding:3px 7px}#druga:hover{opacity:1}</style>
+</head>
+<body>
+<div id="top"><b>Zenica</b>
+  <div id="seg"><button data-m="asc">Asc</button><button data-m="desc" class="on">Desc</button><button data-m="U">Vertikalno</button><button data-m="E">Istok–zapad</button></div>
+  <button class="tb" id="bPr" title="Prosjek koherentnih tačaka (γ ≥ 0,7) u krugu 50 m" aria-label="Prosjek u krugu">◎</button><button class="tb" id="bInfo" title="O podacima" aria-label="O podacima">i</button>
+</div>
+<div id="map"></div>
+<div id="msg">Učitavanje…</div>
+<div id="prmsg" hidden>Dodirni kartu: prosjek koherentnih tačaka (γ ≥ 0,7) u krugu 50 m</div>
+<div id="info" hidden><div class="box"><button class="zx" aria-label="Zatvori">×</button><div id="infotx"></div></div></div>
+<div id="inst" hidden><button class="zx" aria-label="Zatvori">×</button><b>Instaliraj aplikaciju</b><span id="insttx"></span><div><button class="ok" id="instok" hidden>Instaliraj</button></div></div>
+<div id="sheet"><button id="x" aria-label="Zatvori">×</button>
+  <h2 id="ttl"></h2><div class="mut" id="sub"></div><div id="skok" hidden></div>
+  <div class="row"><div class="st"><span>Brzina</span><b id="sv"></b></div><div class="st"><span>Ukupno</span><b id="sd"></b></div><div class="st"><span id="lc">Koherencija</span><b id="sc"></b></div></div>
+  <div id="cw"><canvas id="ch"></canvas></div>
+  <div id="h3"></div>
+  <div id="cw3"><canvas id="ch3"></canvas></div>
+  <div class="mut" id="note"></div>
+  <button id="csv">Preuzmi seriju (CSV)</button>
+</div>
+<script>
+const $ = id => document.getElementById(id), fmt = (v, n) => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(n == null ? 1 : n);
+let PLV = new Map(), NEP = new Set(), M, P = {}, TS = {}, V, mode = 'desc', layer, chart, chart3, selM, SKOK = new Map();
+const LJ = '#9c27b0', PL = '#1e88e5', cellQ = () => mode === 'U' || mode === 'E';   // PL: plavo = mala prosječna brzina, ali ukupni pomak od 2014 iznad praga   // ljubičasto: tačka je od prethodnog mjerenja prešla u višu klasu brzine (do sljedećeg mjerenja)
+const st0 = m => m.options.skok ? { color: '#fff', weight: 1.6 } : m.options.nep ? { color: '#000', weight: 1.5 } : m.options.sb ? { color: '#0d47a1', weight: 1.8 } : { color: '#111', weight: .6 };   // nep: crvena, koherencija 0.3–0.5
+const map = L.map('map', { preferCanvas: true, zoomControl: false, zoomSnap: 0.25 });
+// poluprečnik tačke prati zumiranje (ćelija 30 m ≈ 15 m poluprečnik), da se na telefonu tačke ne slijepe
+const rad = m => { const mpp = 40075016.686 * Math.cos(43.85 * Math.PI / 180) / (256 * Math.pow(2, map.getZoom())); return Math.max(m === 15 ? 3 : 2.2, Math.min(m === 15 ? 9 : 6, m / mpp)); };
+map.on('zoomend', () => { if (layer) { const r = rad(mode === 'U' || mode === 'E' ? 15 : 8); layer.eachLayer(l => l.setRadius(l.options.skok ? rLj(r, l.options.puta) : r)); } });
+const rLj = (r, n) => r * (1.45 + 0.5 * (Math.min(n || 1, 5) - 1)) + 1;   // ljubičasti krug raste s brojem mjerenja zaredom (do 5)
+L.control.zoom({ position: 'bottomright' }).addTo(map);
+const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 20, maxNativeZoom: 19, attribution: 'Esri World Imagery' }).addTo(map);
+const lab = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', { maxZoom: 20, maxNativeZoom: 19, opacity: .8, attribution: 'Esri' }).addTo(map);
+const BAZE = { 'Satelit (Esri)': sat,
+  'Karta – OpenStreetMap': L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 20, maxNativeZoom: 19, attribution: '© OpenStreetMap' }),
+  'Topografska – OpenTopoMap': L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { maxZoom: 20, maxNativeZoom: 17, attribution: '© OpenStreetMap, SRTM | © OpenTopoMap (CC-BY-SA)' }),
+  'Svijetla – CARTO': L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom: 20, attribution: '© OpenStreetMap © CARTO' }) };
+let SBI = new Map(), SB = new Set(), ZK = [], LASTS = null, PROSJEK = false, RPR = 50, krugPr = null;
+const uPoligonu = (x, y, p) => { let c = false; for (let a = 0, b = p.length - 1; a < p.length; b = a++) { const [xa, ya] = p[a], [xb, yb] = p[b]; if ((ya > y) !== (yb > y) && x < (xb - xa) * (y - ya) / (yb - ya) + xa) c = !c; } return c; };
+function slojevi(S, refC) {
+  const P = { pane: 'trasa', interactive: false }, g = (d, st) => L.geoJSON(d, Object.assign({}, P, { style: st }));
+  const ik = (ll, html) => L.marker(ll, { icon: L.divIcon({ className: 'ikon', html, iconSize: null, iconAnchor: [5, 6] }), keyboard: false });
+  const km = L.geoJSON(S.km, { pointToLayer: (f, ll) => { const s = f.properties.stac_m, c = L.circleMarker(ll, { pane: 'trasa', interactive: false, radius: f.properties.km ? 4 : 2.5, color: '#000', weight: 1, fillColor: '#ff9800', fillOpacity: 1 });
+    if (f.properties.km) c.bindTooltip((s > 0 ? '+' : s < 0 ? '−' : '') + Math.abs(s / 1000).toFixed(0) + ' km', { permanent: true, direction: 'right', offset: [4, 0], className: 'kmlab' }); return c; } });
+  const a1 = L.layerGroup([g(S.a1, { color: '#fff', weight: 6, opacity: .6 }), g(S.a1, { color: '#ff9800', weight: 2.5, opacity: .95, dashArray: '8 6' }), km]).addTo(map);
+  const bos = g(S.bosna, { color: '#4fc3f7', weight: 2.5, opacity: .85 }).addTo(map);
+  const vij = g(S.vijadukt, { color: '#ffeb3b', weight: 5, opacity: .9 }).addTo(map);
+  const zona = g(S.zona_pehare, { color: '#ffffff', weight: 1.5, dashArray: '4 4', fill: false }).addTo(map);
+  const zk0 = g(S.zona_km0 || { type: 'FeatureCollection', features: [] }, { color: '#ffffff', weight: 1.5, dashArray: '4 4', fill: false }).addTo(map);
+  const KB = ['#b71c1c', '#e65100', '#f9a825'];
+  const zk = L.geoJSON(S.zone_klizanja, Object.assign({}, P, { style: f => ({ color: KB[(f.properties.klasa || 3) - 1] || '#999', weight: 1.5, fillOpacity: .18 }) })).addTo(map);
+  ZK = S.zone_klizanja.features.filter(f => f.properties.klasa === 1).flatMap(f => f.geometry.type === 'Polygon' ? [f.geometry.coordinates[0]] : f.geometry.coordinates.map(p => p[0]));
+  const kk = L.layerGroup(S.kuce_k.features.map(f => ik([f.geometry.coordinates[1], f.geometry.coordinates[0]], '<b style="background:#d50000;border-radius:2px"></b>K – kuće u klizištu')
+    .bindPopup('<b>K – kuće u kliznom dijelu</b><br>Oznaka iz obrade Pehare (D:\\Obilaznica Zenica\\pehare). Pomake vidjeti u ćelijama Vertikalno / Istok–zapad (SBAS).'))).addTo(map);
+  const ink = L.layerGroup(S.inklinometri.features.map(f => { const q = f.properties; return ik([f.geometry.coordinates[1], f.geometry.coordinates[0]], '<b style="background:#fff;border:2px solid #000;transform:rotate(45deg)"></b>' + q.naziv)
+    .bindPopup('<b>Inklinometar ' + q.naziv + '</b><br>' + (q.nulto ? 'Nulto: ' + q.nulto + '<br>' : '') + (q.zadnje ? 'Zadnje: ' + q.zadnje + '<br>' : '') + (q.H_mm ? 'Horizontalni pomak |H|: ' + q.H_mm + ' mm' + (q.H_mm_god ? ' (' + q.H_mm_god + ' mm/god)' : '') + '<br>' : '') + (q.dubina_m ? 'Dubina: ' + q.dubina_m + ' m' : '')); })).addTo(map);
+  L.control.layers(BAZE, { 'Ceste i nazivi (Esri)': lab, 'Autocesta A1 i stacionaža': a1, 'Rijeka Bosna': bos, 'Vijadukt Pehare': vij, 'Zona Pehare (SBAS ćelije)': zona, 'Zona km 0 (SBAS ćelije)': zk0,
+    'Zone klizanja Pehare (klase 1–3)': zk, 'Kuće K (klizište)': kk, 'Inklinometri (12)': ink, 'Referentna zona': refC }, { position: 'topright', collapsed: true }).addTo(map);
+}
+const J = u => fetch(u, { cache: 'no-cache' }).then(r => { if (!r.ok) throw new Error(u + ' ' + r.status); return r.json(); });
+const klasa = v => { if (v == null) return -1; const a = Math.abs(v), g = M.granice; let k = 0; while (k < g.length && a >= g[k]) k++; return k; };
+const SIVA = '#9e9e9e', boja = v => klasa(v) < 0 ? SIVA : M.boje[klasa(v)];   // siva: premalo dobrih mjerenja u zadnjih 12 mjeseci
+const NAZ = { asc: 'Ascending (LOS)', desc: 'Descending (LOS)', U: 'Vertikalno', E: 'Istok–zapad' };
+const OPIS = { asc: 'Pomak u pravcu gledanja satelita; − = od satelita.', desc: 'Pomak u pravcu gledanja satelita; − = od satelita.', U: 'Vertikalni pomak ćelije 30 m; − = slijeganje.', E: 'Pomak istok–zapad ćelije 30 m; + = istok. Sjever–jug se ne mjeri.' };
+async function init() {
+  try { [M, P.asc, P.desc, V] = await Promise.all([J('data/meta.json'), J('data/asc_pts.json'), J('data/desc_pts.json'), J('data/vert.json')]); }
+  catch (e) { $('msg').textContent = 'Podaci se ne mogu učitati: ' + e.message; return; }
+  const o = M.obuhvat; map.fitBounds([[o.jug, o.zapad], [o.sjever, o.istok]], { padding: [4, 4] });
+  if (location.hash === '#soukbunar') map.setView([M.ink.lat + 0.0035, M.ink.lon + 0.004], innerWidth < 600 ? 14.75 : 15.5);   // stari Soukbunar link: zum na klizište
+  L.rectangle([[o.jug, o.zapad], [o.sjever, o.istok]], { color: '#fff', weight: 1, fill: false, dashArray: '4 4', interactive: false }).addTo(map);
+  const refC = L.circle([M.ref.lat, M.ref.lon], { radius: M.ref.radijus_m, color: '#00e5ff', weight: 1.5, fill: false, dashArray: '6 5' }).addTo(map).bindTooltip('Referentna zona: ' + (M.ref.opis || ''));
+  L.marker([M.ink.lat, M.ink.lon]).addTo(map).bindTooltip(M.ink.naziv);
+  map.createPane('trasa').style.zIndex = 350;   // ispod tačaka
+  fetch('slojevi.json', { cache: 'no-cache' }).then(r => r.ok ? r.json() : null).then(S => { if (S) slojevi(S, refC); }).catch(() => {});
+  const lg = L.control({ position: 'bottomleft' });
+  lg.onAdd = () => { const d = L.DomUtil.create('div'); d.id = 'leg'; const g = M.granice;
+    d.innerHTML = '<div class="hd" id="leghd">Legenda · brzina [mm/god] <span id="legtg"></span></div><div class="bd">' + M.boje.map((c, i) => '<span class="kl k4"><i style="background:' + c + '"></i><span>' + (i === 0 ? '< ' + g[0] : i === g.length ? '> ' + g[g.length - 1] : g[i - 1] + '–' + g[i]) + '<em style="font-style:normal"> · ' + M.klase[i] + '</em></span></span>').join('') + '<div class="kl"><i style="background:' + M.boje[M.boje.length - 1] + ';border:1.5px solid #000;box-sizing:border-box"></i><span>crveno s crnim rubom: koherencija 0,3–0,5 – nepouzdano</span></div><div class="kl"><i style="background:' + PL + '"></i><span id="npl"></span></div><div class="kl"><i style="background:' + LJ + ';border-color:#fff;box-shadow:0 0 0 1px #9c27b0"></i><span id="nsk"></span></div><div class="kl"><i style="background:#2e7d32;border:2px solid #0d47a1;box-sizing:border-box"></i><span>tamnoplavi rub (Vertikalno / Istok–zapad): ćelije iz SBAS obrade (Pehare, km 0)</span></div><div class="mut" style="margin-top:5px;font-weight:700;color:#17212b">Zone klizanja Pehare (obrada Pehare; terenski nije provjereno)</div><div class="kl"><i style="border-radius:2px;background:rgba(183,28,28,.25);border:1.5px solid #b71c1c"></i><span>klasa 1 – aktivno klizanje, potvrđeno Sentinel-1 SBAS 2015–2026 (dvije geometrije, kontrola koherencije)</span></div><div class="kl"><i style="border-radius:2px;background:rgba(230,81,0,.25);border:1.5px solid #e65100"></i><span>klasa 2 – moguće klizanje: samo indikacija NISAR (L-pojas, jun–nov 2026), Sentinel-1 nije potvrdio</span></div><div class="kl"><i style="border-radius:2px;background:rgba(249,168,37,.25);border:1.5px solid #f9a825"></i><span>klasa 3 – lokalni pomak izolovane ćelije ili objekta (< 0,5 ha, |E| < 10 mm/god), nije klizište</span></div><div class="mut" id="upd"></div><div class="mut dis">Prikazane su tačke s koherencijom ≥ 0,5 (ljubičasto: ≥ 0,7); izuzetak su crvene s crnim rubom. Preliminarni rezultati satelitskog mjerenja (Sentinel-1). Nije službeno upozorenje ni osnov za odluke o objektima.</div></div>';
+    L.DomEvent.disableClickPropagation(d); L.DomEvent.disableScrollPropagation(d);
+    let mn = false; try { mn = localStorage.getItem('legMin') === '1'; } catch (e) {}
+    const setMin = v => { d.classList.toggle('min', v); d.querySelector('#legtg').textContent = v ? 'prikaži ▴' : 'sakrij ▾'; try { localStorage.setItem('legMin', v ? '1' : '0'); } catch (e) {} };
+    setTimeout(() => { setMin(mn); d.querySelector('#leghd').addEventListener('click', () => setMin(!d.classList.contains('min'))); }); return d; };
+  lg.addTo(map); draw(); $('msg').style.display = 'none';
+}
+function draw() {
+  if (layer) map.removeLayer(layer); layer = L.layerGroup(); selM = null;
+  const pt = mode === 'asc' || mode === 'desc', sk = pt ? (P[mode].skok || []) : (V['skok' + mode] || []), iz = pt ? (P[mode].iz || []) : (V['iz' + mode] || []);
+  NEP = new Set(pt ? (P[mode].nep || []) : []); SKOK = new Map(sk.map((i, k) => [i, pt ? { u: P[mode].ubrz[k], d: P[mode].dana[k], n: (P[mode].puta || [])[k] || 1 } : { u: (V['ubrz' + mode] || [])[k], d: 0, n: 1, cel: 1 }]));
+  SB = new Set(pt ? [] : (V.sbas || [])); SBI = new Map((V.sbas || []).map((c, k) => [c, (V.sbas_izvor || [])[k] || 0])); PLV = new Map(pt ? (P[mode].plavo || []).map((i, k) => [i, { s: P[mode].uk[k], d: (P[mode].ukd || [])[k], p: (P[mode].ukp || [])[k] }]) : (V['plavo' + mode] || []).map((i, k) => [i, V['uk' + mode][k]])); const kasnije = [];
+  const add = (lat, lon, v, i, r) => { const s = SKOK.has(i), np = !s && NEP.has(i), m = L.circleMarker([lat, lon], { radius: s ? rLj(r, SKOK.get(i).n) : r, puta: s ? SKOK.get(i).n : 0, nep: np, color: s ? '#fff' : np ? '#000' : SB.has(i) ? '#0d47a1' : '#111', weight: s ? 1.6 : np ? 1.5 : SB.has(i) ? 1.8 : .6, fillColor: s ? LJ : PLV.has(i) ? PL : boja(v), fillOpacity: .95, skok: s, sb: SB.has(i) });
+    m.on('click', () => { if (!PROSJEK) pick(i, m); }); if (s) kasnije.push(m); else layer.addLayer(m); };
+  if (pt) { const p = P[mode]; for (let i = 0, r = rad(8); i < p.lon.length; i++) add(p.lat[i], p.lon[i], p.v[i], i, r); $('upd').textContent = 'Zadnji snimak: ' + M.geo[mode].zadnja + ' · ' + p.lon.length + ' tačaka'; }
+  else { const v = mode === 'U' ? V.vU : V.vE; for (let i = 0, r = rad(15); i < V.lon.length; i++) add(V.lat[i], V.lon[i], v[i], i, r); $('upd').textContent = 'Zadnji mjesec: ' + M.vert.zadnji + ' · ' + V.lon.length + ' ćelija'; }
+  kasnije.forEach(m => layer.addLayer(m));   // ljubičaste iznad ostalih
+  $('nsk').textContent = pt ? 'ubrzanje u zadnjih 6–12 dana (≥ ' + M.pragovi.ljubicasto_los_mm + ' mm): ' + SKOK.size + ' (veći krug = više mjerenja zaredom)' : mode === 'U' ? 'ubrzanje u zadnjem mjesecu (≥ ' + M.pragovi.ljubicasto_vertikalno_mm + ' mm): ' + SKOK.size : 'ubrzanje: u prikazu Asc / Desc / Vertikalno';
+  $('npl').textContent = (pt ? 'lokalno trajno slijeganje jedne tačke ili grupe tačaka (≥ 3,5–8 mm prema koherenciji), potvrđeno u asc i desc: ' : 'lokalno trajno vertikalno slijeganje ≥ ' + M.pragovi.plavo_skok_vertikalno_mm + ' mm (uz stručni pregled): ') + PLV.size;
+  layer.addTo(map);
+}
+async function series(i) {
+  if (Array.isArray(i)) { const S = []; for (const j of i) S.push(await series(j)); const t = S[0].t;
+    return { t, y: t.map((_, k) => { const v = S.map(q => q.y[k]).filter(x => x != null).sort((a, b) => a - b); return v.length >= Math.max(1, Math.ceil(S.length / 3)) ? v[Math.floor(v.length / 2)] : null; }) }; }
+  if (mode === 'U' || mode === 'E') return { t: V.mjeseci.map(m => m + '-15'), y: V[mode][i].map(x => x == null ? null : x / 10) };
+  const g = M.geo[mode], T = g.epohe.length;
+  const B = g.ts_blok || 0, kb = B ? Math.floor(i / B) : 0, key = mode + '_' + kb, j = B ? i - kb * B : i;   // nizovi u blokovima od B tačaka (manje preuzimanje na telefonu)
+  if (!TS[key]) { $('note').textContent = 'Učitavanje vremenskog niza…'; TS[key] = new Int16Array(await (await fetch('data/' + mode + (B ? '_ts_' + kb : '_ts') + '.bin', { cache: 'no-cache' })).arrayBuffer()); }
+  return { t: g.epohe, y: Array.from(TS[key].subarray(j * T, (j + 1) * T), x => x === -32768 ? null : x / 10) };
+}
+async function pick(i, m) {
+  if (selM) selM.setStyle(st0(selM)); selM = m; if (m) { m.setStyle({ color: '#00e5ff', weight: 3 }); m.bringToFront(); }
+  const GR = Array.isArray(i);
+  const v12 = !GR && (mode === 'asc' || mode === 'desc') ? P[mode].v12[i] : null;
+  $('skok').hidden = !SKOK.has(i) && !PLV.has(i); if (SKOK.has(i)) { const q = SKOK.get(i); $('skok').textContent = q.cel ? 'Ubrzanje: u zadnjem mjesecu vertikalni pomak je ' + q.u.toFixed(1) + ' mm veći od trenda prethodnih 12 mjeseci.' : 'Ubrzanje: u zadnjih ' + q.d + ' dana pomak je ' + q.u.toFixed(1) + ' mm veći od trenda zadnjih 12 mjeseci (' + fmt(v12) + ' mm/god). Ljubičasta ' + (q.n > 1 ? q.n + ' mjerenja zaredom' : 'prvi put') + '; ostaje do sljedećeg mjerenja.'; }
+  else if (PLV.has(i)) { const q = PLV.get(i); $('skok').textContent = q.s != null && cellQ() ? 'Plavo: lokalno trajno vertikalno slijeganje ' + fmt(q.s) + ' mm, početak oko ' + q.d + ' (srednja vrijednost tačaka ćelije, asc + desc) – npr. građevinski zahvat ili iskop. ' + (q.p ? 'Potvrđeno stručnim pregledom.' : 'Automatski kandidat – nije pregledano.') : q.n ? 'Plavo: u ćeliji je ' + q.n + ' tačaka s lokalnim trajnim skokom (≥ ' + M.pragovi.plavo_skok_mm + ' mm, potvrđeno u asc i desc) – pogledati tačke u prikazu Asc / Desc.' : 'Plavo: lokalno trajno slijeganje ' + fmt(q.s) + ' mm, početak oko ' + q.d + ' (nivo ostaje; potvrđen u drugoj geometriji) – npr. građevinski zahvat ili iskop. ' + (q.p ? 'Potvrđeno stručnim pregledom.' : 'Automatski kandidat – nije pregledano.'); }
+  const cell = mode === 'U' || mode === 'E', lat = GR ? i.lat : cell ? V.lat[i] : P[mode].lat[i], lon = GR ? i.lon : cell ? V.lon[i] : P[mode].lon[i];
+  $('ttl').textContent = GR ? NAZ[mode] + ' · prosjek ' + i.length + (cell ? ' ćelija' : ' tačaka') + ' (γ ≥ 0,7) u krugu ' + RPR + ' m' : NAZ[mode] + (cell ? (SB.has(i) ? ' · ćelija SBAS (' + ((M.sbas || [])[SBI.get(i)] || {}).naziv + ')' : ' · ćelija') : ' · tačka ' + (i + 1)) + (!GR && !cell && NEP.has(i) ? ' · NEPOUZDANA (koherencija < 0,5)' : ''); $('sub').textContent = lat.toFixed(5) + ' N, ' + lon.toFixed(5) + ' E'; $('sheet').classList.add('on');
+  if (innerWidth < 900) { const py = map.latLngToContainerPoint([lat, lon]).y, vis = map.getSize().y - $('sheet').offsetHeight - 40; if (py > vis) map.panBy([0, py - vis / 2], { animate: true }); }   // da izabrana tačka ne ostane ispod panela
+  const s = await series(i); LASTS = { s, naziv: $('ttl').textContent + ' | ' + $('sub').textContent }; const T0 = Date.parse(s.t[0]), x = s.t.map(d => (Date.parse(d) - T0) / 31557600000), ok = s.y.map((v, k) => v == null ? -1 : k).filter(k => k >= 0);
+  let sx = 0, sy = 0, sxx = 0, sxy = 0; ok.forEach(k => { sx += x[k]; sy += s.y[k]; sxx += x[k] * x[k]; sxy += x[k] * s.y[k]; });
+  const n = ok.length, b = (n * sxy - sx * sy) / (n * sxx - sx * sx), a = (sy - b * sx) / n, last = ok[ok.length - 1];
+  $('sv').textContent = fmt(b) + ' mm/god'; $('sd').textContent = fmt(s.y[last] - s.y[ok[0]], 0) + ' mm';
+  if (GR) { $('lc').textContent = 'U prosjeku'; $('sc').textContent = i.length + (cell ? ' ćelija' : ' tačaka'); } else if (cell && SB.has(i)) { $('lc').textContent = 'Piksela SBAS (asc / desc)'; $('sc').textContent = V.n[i][0] + ' / ' + V.n[i][1]; } else if (cell) { $('lc').textContent = 'Tačaka · koherencija (asc / desc)'; $('sc').textContent = V.n[i][0] + ' / ' + V.n[i][1] + (V.koh ? ' · ' + V.koh[i][0].toFixed(2) + ' / ' + V.koh[i][1].toFixed(2) : ''); } else { $('lc').textContent = 'Koherencija'; $('sc').textContent = P[mode].coh[i].toFixed(2); }
+  $('note').textContent = OPIS[mode] + (v12 != null ? ' Brzina zadnjih 12 mj.: ' + fmt(v12) + ' mm/god.' : '') + ' Zadnje mjerenje: ' + s.t[last].slice(0, cell ? 7 : 10) + '. Nula = prva epoha. Referenca: ' + (M.ref.opis || 'referentna zona') + '.' + (GR ? ' Prosjek = medijan po epohi ' + (cell ? 'ćelija' : 'tačaka') + ' s koherencijom ≥ 0,7 u krugu (crvene s crnim rubom nisu uključene).' : '') + (cell && !GR && SB.has(i) ? ' Izvor: ' + ((M.sbas || [])[SBI.get(i)] || {}).opis + (((M.sbas || [])[SBI.get(i)] || {}).automatski ? '' : '; ne osvježava se automatski') + ' (zadnji mjesec ' + ((M.sbas || [])[SBI.get(i)] || {}).zadnji + ').' : '') + (!cell && ZK.some(p => uPoligonu(lon, lat, p)) ? ' Tačka je u zoni klizanja klase 1 (obrada Pehare); za ovu zonu u prikazu Vertikalno / Istok–zapad su ćelije iz SBAS obrade Pehare.' : '');
+  const css = getComputedStyle(document.documentElement), fg = css.getPropertyValue('--fg').trim(), ln = css.getPropertyValue('--line').trim(), ac = css.getPropertyValue('--acc').trim();
+  const pts = s.t.map((d, k) => ({ x: Date.parse(d), y: s.y[k] })), tr = [{ x: Date.parse(s.t[ok[0]]), y: a + b * x[ok[0]] }, { x: Date.parse(s.t[last]), y: a + b * x[last] }];
+  if (chart) chart.destroy();
+  chart = new Chart($('ch'), { type: 'line', data: { datasets: [
+      { label: 'Pomak [mm]', data: pts, borderColor: ac, backgroundColor: ac, borderWidth: 1.3, pointRadius: cell ? 2 : 1.3, spanGaps: false, tension: 0 },
+      { label: 'Trend', data: tr, borderColor: '#d62728', borderWidth: 2, borderDash: [6, 4], pointRadius: 0 }] },
+    options: { responsive: true, maintainAspectRatio: false, animation: false, parsing: false, interaction: { mode: 'nearest', intersect: false },
+      plugins: { legend: { labels: { color: fg, boxWidth: 18, font: { size: 12 } } }, tooltip: { callbacks: { title: it => new Date(it[0].parsed.x).toISOString().slice(0, 10), label: it => fmt(it.parsed.y) + ' mm' } } },
+      scales: { x: { type: 'linear', min: Date.UTC(new Date(pts[0].x).getUTCFullYear(), 0, 1), max: Date.UTC(new Date(pts[pts.length - 1].x).getUTCFullYear() + 1, 0, 1), ticks: { color: fg, stepSize: 2 * 31557600000, callback: v => new Date(v + 43200000).getUTCFullYear() }, grid: { color: ln } }, y: { ticks: { color: fg }, grid: { color: ln }, title: { display: true, text: 'mm', color: fg } } } } });
+  // ---- uvećano: zadnja 3 mjeseca (ćelije su mjesečne, pa za njih 6 mjeseci) ----
+  const dan = 86400000, Tl = Date.parse(s.t[last]), dug = cell ? 183 : 92, w = ok.filter(k => Date.parse(s.t[k]) >= Tl - dug * dan);
+  if (chart3) { chart3.destroy(); chart3 = null; }
+  if (w.length < 3) { $('h3').textContent = (cell ? 'Zadnjih 6 mjeseci' : 'Zadnja 3 mjeseca') + ': premalo mjerenja za trend'; return; }
+  const y0 = s.y[w[0]], p3 = w.map(k => ({ x: Date.parse(s.t[k]), y: s.y[k] - y0 }));
+  let qx = 0, qy = 0, qxx = 0, qxy = 0; p3.forEach(p => { const u = (p.x - p3[0].x) / 31557600000; qx += u; qy += p.y; qxx += u * u; qxy += u * p.y; });
+  const nq = p3.length, b3 = (nq * qxy - qx * qy) / (nq * qxx - qx * qx), a3 = (qy - b3 * qx) / nq, u1 = (p3[nq - 1].x - p3[0].x) / 31557600000;
+  $('h3').innerHTML = '<b>' + (cell ? 'Zadnjih 6 mjeseci' : 'Zadnja 3 mjeseca') + '</b> · trend ' + fmt(b3) + ' mm/god · ' + nq + ' mjerenja <span class="mut">(kratak period – šum je veći nego na cijelom nizu)</span>';
+  const ddmm = v => { const d = new Date(v); return d.getUTCDate() + '.' + (d.getUTCMonth() + 1) + '.'; };
+  chart3 = new Chart($('ch3'), { type: 'line', data: { datasets: [
+      { label: 'Pomak [mm]', data: p3, borderColor: ac, backgroundColor: ac, borderWidth: 1.5, pointRadius: 3, tension: 0 },
+      { label: 'Trend', data: [{ x: p3[0].x, y: a3 }, { x: p3[nq - 1].x, y: a3 + b3 * u1 }], borderColor: '#d62728', borderWidth: 2, borderDash: [6, 4], pointRadius: 0 }] },
+    options: { responsive: true, maintainAspectRatio: false, animation: false, parsing: false, interaction: { mode: 'nearest', intersect: false },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { title: it => new Date(it[0].parsed.x).toISOString().slice(0, 10), label: it => fmt(it.parsed.y) + ' mm' } } },
+      scales: { x: { type: 'linear', min: Tl - dug * dan, max: Tl + 3 * dan, ticks: { color: fg, maxTicksLimit: 6, callback: ddmm }, grid: { color: ln } }, y: { ticks: { color: fg }, grid: { color: ln }, title: { display: true, text: 'mm (od početka perioda)', color: fg } } } } });
+}
+document.querySelectorAll('#seg button').forEach(bt => bt.addEventListener('click', () => { mode = bt.dataset.m; document.querySelectorAll('#seg button').forEach(q => q.classList.toggle('on', q === bt)); $('sheet').classList.remove('on'); draw(); }));
+$('bPr').addEventListener('click', () => { PROSJEK = !PROSJEK; $('bPr').classList.toggle('on', PROSJEK); $('prmsg').hidden = !PROSJEK; if (!PROSJEK && krugPr) { map.removeLayer(krugPr); krugPr = null; } });
+map.on('click', e => { if (!PROSJEK) return; const cell = cellQ(), la = cell ? V.lat : P[mode].lat, lo = cell ? V.lon : P[mode].lon, kx = 111320 * Math.cos(e.latlng.lat * Math.PI / 180);
+  const KOH = 0.7, kohOk = k => cell ? (SB.has(k) || (V.koh[k] && Math.min(V.koh[k][0], V.koh[k][1]) >= KOH)) : (P[mode].coh[k] >= KOH && !NEP.has(k));   // samo koherentne (kao pravila ljubičasto/plavo)
+  const sel = []; for (let k = 0; k < la.length; k++) if (Math.hypot((lo[k] - e.latlng.lng) * kx, (la[k] - e.latlng.lat) * 111320) <= RPR && kohOk(k)) sel.push(k);
+  if (krugPr) map.removeLayer(krugPr); krugPr = L.circle(e.latlng, { radius: RPR, color: '#00e5ff', weight: 2, fillOpacity: .08, interactive: false }).addTo(map);
+  if (sel.length < 3) { $('prmsg').textContent = 'U krugu 50 m ima ' + sel.length + ' koherentnih (γ ≥ 0,7) – potrebno najmanje 3; dodirni drugo mjesto'; $('sheet').classList.remove('on'); LASTS = null; return; }
+  $('prmsg').textContent = 'Dodirni kartu: prosjek koherentnih tačaka (γ ≥ 0,7) u krugu 50 m'; const arr = sel.slice(0, 150); arr.lat = e.latlng.lat; arr.lon = e.latlng.lng; pick(arr, null); });
+$('csv').addEventListener('click', () => { if (!LASTS) return; const s = LASTS.s, rows = ['# ' + LASTS.naziv, '# ' + NAZ[mode] + '; mm; LOS > 0 = prema satelitu; Vertikalno − = slijeganje; Istok–zapad + = istok', 'datum,pomak_mm'].concat(s.t.map((d, k) => d + ',' + (s.y[k] == null ? '' : s.y[k].toFixed(1))));
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([rows.join('\n')], { type: 'text/csv' })); a.download = 'zenica_insar_' + mode + '_' + Date.now() + '.csv'; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500); });
+$('bInfo').addEventListener('click', () => { if (!M) return; const g = M.geo, ph = M.pehare || {};
+  $('infotx').innerHTML = '<h3>O podacima – Obilaznica Zenica InSAR</h3><dl>' +
+    '<dt>Mjerenje</dt><dd>Satelitska radarska interferometrija (InSAR), Sentinel-1 (ESA Copernicus). Tačke: Persistent Scatterers (StaMPS). Pomak se mjeri u pravcu satelita (LOS); iz dvije geometrije izračunati su vertikalni i istok–zapad pomak ćelija 30 m.</dd>' +
+    '<dt>Period</dt><dd>Od otvaranja obilaznice za promet (14. 7. 2021): asc ' + g.asc.epohe[0] + ' – ' + g.asc.zadnja + ', desc ' + g.desc.epohe[0] + ' – ' + g.desc.zadnja + '. Nula = prvo mjerenje.</dd>' +
+    '<dt>Geometrije</dt><dd>Ascending: relativna orbita ' + g.asc.rel_orbita + ', ' + g.asc.n + ' tačaka, ' + g.asc.epohe.length + ' snimaka. Descending: relativna orbita ' + g.desc.rel_orbita + ', ' + g.desc.n + ' tačaka, ' + g.desc.epohe.length + ' snimaka.</dd>' +
+    '<dt>Referentna zona</dt><dd>' + (M.ref.opis || '') + ' (' + M.ref.lat.toFixed(5) + ' N, ' + M.ref.lon.toFixed(5) + ' E, r ' + M.ref.radijus_m + ' m) – ista za asc i desc; pomaci su relativni u odnosu na nju.</dd>' +
+    '<dt>Konvencija znaka</dt><dd>LOS > 0 = prema satelitu. Vertikalno: − = slijeganje. Istok–zapad: + = istok. Sjever–jug se ne mjeri (N = 0, ograničenje polarne orbite).</dd>' +
+    '<dt>Prikaz</dt><dd>Tačke s koherencijom ≥ 0,5; crvene (> 10 mm/god) s koherencijom 0,3–0,5 prikazane su s crnim rubom kao manje pouzdane. Ćelije 30 m računaju se samo iz tačaka s koherencijom ≥ 0,5.</dd>' +
+    '<dt>Boje</dt><dd>Brzina cijelog niza (zeleno < 2, žuto 2–5, narandžasto 5–10, crveno > 10 mm/god). Ljubičasto: ubrzanje u zadnjim mjerenjima (koherencija ≥ 0,7). Plavo: lokalno trajno slijeganje. Crveno s crnim rubom: nepouzdano (koherencija 0,3–0,5).</dd>' +
+    '<dt>SBAS ćelije</dt><dd>U zonama Pehare (Bosna–A1) i km 0 (krug 800 m oko portala tunela Klopče) ćelije Vertikalno / Istok–zapad dolaze iz posebnih SBAS obrada (ćelije 30 m, pikseli γt > 0,7, tamnoplavi rub) umjesto PS ćelija: ' + (M.sbas || []).map(s => s.naziv + ' ' + s.celija + ' ćelija, zadnji mjesec ' + s.zadnji + (s.automatski ? ', automatski se dopunjava novim snimcima' : ', ne osvježava se automatski')).join('; ') + '.</dd>' +
+    '<dt>Osvježavanje</dt><dd>Automatski jednom dnevno (novi snimak svakih 6–12 dana po geometriji). Zadnje ažuriranje: ' + M.azurirano + '.</dd>' +
+    '<dt>Alati</dt><dd>Klik na tačku: vremenska serija. ◎: prosjek koherentnih tačaka (γ ≥ 0,7, najmanje 3) u krugu 50 m. Ikona slojeva (gore desno): podloge, autocesta sa stacionažom, Bosna, vijadukt, zone klizanja, kuće K, inklinometri. Preuzmi CSV: serija izabrane tačke.</dd>' +
+    '<dt>Napomena</dt><dd>Preliminarni rezultati satelitskog mjerenja – nisu službeno upozorenje ni osnov za odluke o objektima bez terenske provjere.</dd></dl>';
+  $('info').hidden = false; });
+$('info').addEventListener('click', e => { if (e.target.id === 'info' || e.target.classList.contains('zx')) $('info').hidden = true; });
+$('x').addEventListener('click', () => { $('sheet').classList.remove('on'); if (selM) { selM.setStyle(st0(selM)); selM = null; } });
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+// ---- instalacija na početni ekran (iPhone: Dijeli → Dodaj na početni ekran; Android/računar: dugme) ----
+(() => {
+  const sa = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; if (sa) return;
+  let odb = 0; try { odb = +localStorage.getItem('instOdb') || 0; } catch (e) {}
+  if (Date.now() - odb < 14 * 864e5) return;
+  const box = $('inst'), zat = () => { box.hidden = true; try { localStorage.setItem('instOdb', String(Date.now())); } catch (e) {} };
+  box.querySelector('.zx').addEventListener('click', zat);
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (ios) { $('insttx').textContent = 'Za otvaranje kao aplikacija preko cijelog ekrana: u Safariju dodirni Dijeli (kvadrat sa strelicom) pa „Dodaj na početni ekran“.'; setTimeout(() => box.hidden = false, 2500); return; }
+  let ev = null; addEventListener('beforeinstallprompt', e => { e.preventDefault(); ev = e; $('insttx').textContent = 'Dodaj Obilaznica Zenica InSAR na početni ekran – otvara se kao aplikacija, bez adresne trake.'; $('instok').hidden = false; box.hidden = false; });
+  $('instok').addEventListener('click', async () => { if (!ev) return; ev.prompt(); await ev.userChoice.catch(() => {}); ev = null; box.hidden = true; });
+  addEventListener('appinstalled', () => { box.hidden = true; });
+})();
+init();
+</script>
+</body>
+</html>

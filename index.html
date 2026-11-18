@@ -2,12 +2,18 @@
 <html lang="bs">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#16324a">
-<title>Soukbunar InSAR</title>
+<title>Sarajevo centar InSAR</title>
 <link rel="manifest" href="manifest.webmanifest">
+
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Sarajevo InSAR">
+<meta name="description" content="Pomaci tla i objekata u centru Sarajeva iz satelitskih mjerenja Sentinel-1 (InSAR), osvježavanje svaki dan.">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -23,8 +29,15 @@
   #seg button { flex:1; min-height:40px; border:0; background:none; color:#fff; font:600 14px system-ui, sans-serif; border-radius:7px; }
   #seg button.on { background:#fff; color:#16324a; }
   #map { position:fixed; inset:calc(54px + env(safe-area-inset-top)) 0 0 0; }
-  #leg { background:var(--bg); color:var(--fg); padding:7px 9px; border-radius:8px; font-size:12.5px; line-height:1.55; box-shadow:0 1px 5px rgba(0,0,0,.35); }
-  #leg i { display:inline-block; width:12px; height:12px; border-radius:50%; margin-right:6px; vertical-align:-1px; border:1px solid rgba(0,0,0,.45); }
+  #leg { background:#fff; color:#17212b; padding:8px 10px; border-radius:10px; font-size:12.5px; line-height:1.35; box-shadow:0 1px 6px rgba(0,0,0,.4);
+         width:300px; max-width:calc(100vw - 72px); max-height:calc(100vh - 150px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); overflow:auto; }
+  #leg .hd { display:flex; align-items:center; justify-content:space-between; gap:8px; font-weight:700; cursor:pointer; user-select:none; min-height:26px; }
+  #leg .hd span { font-size:12px; color:#5b6672; font-weight:600; }
+  #leg.min .bd { display:none; }
+  #leg .kl { display:flex; align-items:flex-start; gap:7px; margin:4px 0; }
+  #leg .kl.k4 { display:inline-flex; width:48%; margin:2px 0; }
+  #leg i { flex:none; display:inline-block; width:12px; height:12px; border-radius:50%; margin-top:2px; border:1px solid rgba(0,0,0,.45); }
+  #leg .mut { color:#5b6672; }
   #sheet { position:fixed; left:0; right:0; bottom:0; z-index:1100; background:var(--bg); border-top:1px solid var(--line); border-radius:14px 14px 0 0; box-shadow:0 -3px 14px rgba(0,0,0,.3);
            padding:10px 14px calc(12px + env(safe-area-inset-bottom)); transform:translateY(105%); transition:transform .22s; max-height:62vh; overflow:auto; }
   #sheet.on { transform:none; }
@@ -36,68 +49,118 @@
   .st b { font-size:16px; font-variant-numeric:tabular-nums; }
   .mut { color:var(--mut); font-size:12.5px; }
   #cw { position:relative; height:210px; }
+  #cw3 { position:relative; height:170px; }
+  #h3 { margin:10px 0 2px; font-size:13.5px; }
+  #skok { color:#9c27b0; font-weight:700; font-size:13px; margin-top:2px; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) #skok { color:#d27be6; } }
+  :root[data-theme="dark"] #skok { color:#d27be6; }
   #msg { position:fixed; left:50%; top:45%; transform:translate(-50%,-50%); z-index:1200; background:var(--bar); color:#fff; padding:10px 16px; border-radius:10px; font-weight:600; }
+  #seg button { white-space:nowrap; padding:0 4px; }
+  .leaflet-bottom { margin-bottom:env(safe-area-inset-bottom); }
+  #leg .dis { line-height:1.3; margin-top:5px; font-size:11.5px; }
+  @media (max-width:520px) {
+    #top b { display:none; } #seg button { font-size:13.5px; }
+    #leg { font-size:12px; padding:6px 8px; } #leg .kl em { display:none; }
+    #leg .dis { font-size:11px; }
+  }
   @media (min-width:900px) { #sheet { left:auto; width:460px; right:12px; bottom:12px; border-radius:14px; border:1px solid var(--line); max-height:80vh; } }
 </style>
+<style>
+  html, body { -webkit-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
+  #sheet, #sheet * { -webkit-user-select:text; user-select:text; }
+  #inst { position:fixed; left:10px; right:10px; top:calc(62px + env(safe-area-inset-top)); z-index:1150; background:#fff; color:#17212b; border-radius:12px; box-shadow:0 3px 14px rgba(0,0,0,.35);
+          padding:10px 44px 10px 12px; font-size:13.5px; line-height:1.4; max-width:460px; margin:0 auto; }
+  #inst b { display:block; margin-bottom:2px; } #inst button.ok { margin-top:8px; border:0; background:#16324a; color:#fff; font:600 14px system-ui, sans-serif; border-radius:8px; padding:8px 14px; }
+  #inst .zx { position:absolute; right:4px; top:2px; width:40px; height:40px; border:0; background:none; font-size:24px; color:#5b6672; }
+</style>
+<style>#druga{margin-left:auto;white-space:nowrap;font-size:12.5px;color:var(--barfg);opacity:.85;text-decoration:none;border:1px solid currentColor;border-radius:6px;padding:3px 7px}#druga:hover{opacity:1}</style>
 </head>
 <body>
-<div id="top"><b>Soukbunar</b>
-  <div id="seg"><button data-m="asc">Asc</button><button data-m="desc">Desc</button><button data-m="U" class="on">Vertikalno</button><button data-m="E">Istok–zapad</button></div>
+<div id="top"><b>Sarajevo</b>
+  <div id="seg"><button data-m="asc">Asc</button><button data-m="desc" class="on">Desc</button><button data-m="U">Vertikalno</button><button data-m="E">Istok–zapad</button></div>
 </div>
 <div id="map"></div>
 <div id="msg">Učitavanje…</div>
+<div id="inst" hidden><button class="zx" aria-label="Zatvori">×</button><b>Instaliraj aplikaciju</b><span id="insttx"></span><div><button class="ok" id="instok" hidden>Instaliraj</button></div></div>
 <div id="sheet"><button id="x" aria-label="Zatvori">×</button>
-  <h2 id="ttl"></h2><div class="mut" id="sub"></div>
+  <h2 id="ttl"></h2><div class="mut" id="sub"></div><div id="skok" hidden></div>
   <div class="row"><div class="st"><span>Brzina</span><b id="sv"></b></div><div class="st"><span>Ukupno</span><b id="sd"></b></div><div class="st"><span id="lc">Koherencija</span><b id="sc"></b></div></div>
   <div id="cw"><canvas id="ch"></canvas></div>
+  <div id="h3"></div>
+  <div id="cw3"><canvas id="ch3"></canvas></div>
   <div class="mut" id="note"></div>
 </div>
 <script>
 const $ = id => document.getElementById(id), fmt = (v, n) => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(n == null ? 1 : n);
-let M, P = {}, TS = {}, V, mode = 'U', layer, chart, selM;
-const map = L.map('map', { preferCanvas: true, zoomControl: false });
+let PLV = new Map(), NEP = new Set(), M, P = {}, TS = {}, V, mode = 'desc', layer, chart, chart3, selM, SKOK = new Map();
+const LJ = '#9c27b0', PL = '#1e88e5', cellQ = () => mode === 'U' || mode === 'E';   // PL: plavo = mala prosječna brzina, ali ukupni pomak od 2014 iznad praga   // ljubičasto: tačka je od prethodnog mjerenja prešla u višu klasu brzine (do sljedećeg mjerenja)
+const st0 = m => m.options.skok ? { color: '#fff', weight: 1.6 } : m.options.nep ? { color: '#000', weight: 1.5 } : { color: '#111', weight: .6 };   // nep: crvena, koherencija 0.3–0.5
+const map = L.map('map', { preferCanvas: true, zoomControl: false, zoomSnap: 0.25 });
+// poluprečnik tačke prati zumiranje (ćelija 30 m ≈ 15 m poluprečnik), da se na telefonu tačke ne slijepe
+const rad = m => { const mpp = 40075016.686 * Math.cos(43.85 * Math.PI / 180) / (256 * Math.pow(2, map.getZoom())); return Math.max(m === 15 ? 3 : 2.2, Math.min(m === 15 ? 9 : 6, m / mpp)); };
+map.on('zoomend', () => { if (layer) { const r = rad(mode === 'U' || mode === 'E' ? 15 : 8); layer.eachLayer(l => l.setRadius(l.options.skok ? rLj(r, l.options.puta) : r)); } });
+const rLj = (r, n) => r * (1.45 + 0.5 * (Math.min(n || 1, 5) - 1)) + 1;   // ljubičasti krug raste s brojem mjerenja zaredom (do 5)
 L.control.zoom({ position: 'bottomright' }).addTo(map);
 const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 20, maxNativeZoom: 19, attribution: 'Esri World Imagery' }).addTo(map);
 const lab = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', { maxZoom: 20, maxNativeZoom: 19, opacity: .8, attribution: 'Esri' }).addTo(map);
 const J = u => fetch(u, { cache: 'no-cache' }).then(r => { if (!r.ok) throw new Error(u + ' ' + r.status); return r.json(); });
-const klasa = v => { const a = Math.abs(v), g = M.granice; return a < g[0] ? 0 : a < g[1] ? 1 : a < g[2] ? 2 : 3; };
+const klasa = v => { if (v == null) return -1; const a = Math.abs(v), g = M.granice; let k = 0; while (k < g.length && a >= g[k]) k++; return k; };
+const SIVA = '#9e9e9e', boja = v => klasa(v) < 0 ? SIVA : M.boje[klasa(v)];   // siva: premalo dobrih mjerenja u zadnjih 12 mjeseci
 const NAZ = { asc: 'Ascending (LOS)', desc: 'Descending (LOS)', U: 'Vertikalno', E: 'Istok–zapad' };
 const OPIS = { asc: 'Pomak u pravcu gledanja satelita; − = od satelita.', desc: 'Pomak u pravcu gledanja satelita; − = od satelita.', U: 'Vertikalni pomak ćelije 30 m; − = slijeganje.', E: 'Pomak istok–zapad ćelije 30 m; + = istok. Sjever–jug se ne mjeri.' };
 async function init() {
   try { [M, P.asc, P.desc, V] = await Promise.all([J('data/meta.json'), J('data/asc_pts.json'), J('data/desc_pts.json'), J('data/vert.json')]); }
   catch (e) { $('msg').textContent = 'Podaci se ne mogu učitati: ' + e.message; return; }
-  const o = M.obuhvat; map.fitBounds([[o.jug, o.zapad], [o.sjever, o.istok]]);
+  const o = M.obuhvat; map.fitBounds([[o.jug, o.zapad], [o.sjever, o.istok]], { padding: [4, 4] });
+  if (innerWidth < 600) map.setView([(o.jug + o.sjever) / 2, (o.zapad + o.istok) / 2], 13.75);   // telefon: centar obuhvata
+  if (location.hash === '#soukbunar') map.setView([M.ink.lat + 0.0035, M.ink.lon + 0.004], innerWidth < 600 ? 14.75 : 15.5);   // stari Soukbunar link: zum na klizište
   L.rectangle([[o.jug, o.zapad], [o.sjever, o.istok]], { color: '#fff', weight: 1, fill: false, dashArray: '4 4', interactive: false }).addTo(map);
   L.circle([M.ref.lat, M.ref.lon], { radius: M.ref.radijus_m, color: '#00e5ff', weight: 1.5, fill: false, dashArray: '6 5' }).addTo(map).bindTooltip('Referentna zona');
   L.marker([M.ink.lat, M.ink.lon]).addTo(map).bindTooltip(M.ink.naziv);
   const lg = L.control({ position: 'bottomleft' });
   lg.onAdd = () => { const d = L.DomUtil.create('div'); d.id = 'leg'; const g = M.granice;
-    d.innerHTML = '<b>Brzina [mm/god]</b><br>' + M.boje.map((c, i) => '<i style="background:' + c + '"></i>' + (i === 0 ? '< ' + g[0] : i === 3 ? '> ' + g[2] : g[i - 1] + '–' + g[i]) + ' · ' + M.klase[i]).join('<br>') + '<div class="mut" id="upd"></div><div class="mut" style="max-width:230px;line-height:1.3;margin-top:3px">Preliminarni rezultati satelitskog mjerenja (Sentinel-1). Nije službeno upozorenje ni osnov za odluke o objektima.</div>'; return d; };
+    d.innerHTML = '<div class="hd" id="leghd">Legenda · brzina [mm/god] <span id="legtg"></span></div><div class="bd">' + M.boje.map((c, i) => '<span class="kl k4"><i style="background:' + c + '"></i><span>' + (i === 0 ? '< ' + g[0] : i === g.length ? '> ' + g[g.length - 1] : g[i - 1] + '–' + g[i]) + '<em style="font-style:normal"> · ' + M.klase[i] + '</em></span></span>').join('') + '<div class="kl"><i style="background:' + M.boje[M.boje.length - 1] + ';border:1.5px solid #000;box-sizing:border-box"></i><span>crveno s crnim rubom: koherencija 0,3–0,5 – nepouzdano</span></div><div class="kl"><i style="background:' + PL + '"></i><span id="npl"></span></div><div class="kl"><i style="background:' + LJ + ';border-color:#fff;box-shadow:0 0 0 1px #9c27b0"></i><span id="nsk"></span></div><div class="mut" id="upd"></div><div class="mut dis">Prikazane su tačke s koherencijom ≥ 0,5 (ljubičasto: ≥ 0,7); izuzetak su crvene s crnim rubom. Preliminarni rezultati satelitskog mjerenja (Sentinel-1). Nije službeno upozorenje ni osnov za odluke o objektima.</div></div>';
+    L.DomEvent.disableClickPropagation(d); L.DomEvent.disableScrollPropagation(d);
+    let mn = false; try { mn = localStorage.getItem('legMin') === '1'; } catch (e) {}
+    const setMin = v => { d.classList.toggle('min', v); d.querySelector('#legtg').textContent = v ? 'prikaži ▴' : 'sakrij ▾'; try { localStorage.setItem('legMin', v ? '1' : '0'); } catch (e) {} };
+    setTimeout(() => { setMin(mn); d.querySelector('#leghd').addEventListener('click', () => setMin(!d.classList.contains('min'))); }); return d; };
   lg.addTo(map); draw(); $('msg').style.display = 'none';
 }
 function draw() {
   if (layer) map.removeLayer(layer); layer = L.layerGroup(); selM = null;
-  const add = (lat, lon, v, i, r) => { const m = L.circleMarker([lat, lon], { radius: r, color: '#111', weight: .6, fillColor: M.boje[klasa(v)], fillOpacity: .95 }); m.on('click', () => pick(i, m)); layer.addLayer(m); };
-  if (mode === 'asc' || mode === 'desc') { const p = P[mode]; for (let i = 0; i < p.lon.length; i++) add(p.lat[i], p.lon[i], p.v[i], i, 5); $('upd').textContent = 'Zadnji snimak: ' + M.geo[mode].zadnja + ' · ' + p.lon.length + ' tačaka'; }
-  else { const v = mode === 'U' ? V.vU : V.vE; for (let i = 0; i < V.lon.length; i++) add(V.lat[i], V.lon[i], v[i], i, 7); $('upd').textContent = 'Zadnji mjesec: ' + M.vert.zadnji + ' · ' + V.lon.length + ' ćelija'; }
+  const pt = mode === 'asc' || mode === 'desc', sk = pt ? (P[mode].skok || []) : (V['skok' + mode] || []), iz = pt ? (P[mode].iz || []) : (V['iz' + mode] || []);
+  NEP = new Set(pt ? (P[mode].nep || []) : []); SKOK = new Map(sk.map((i, k) => [i, pt ? { u: P[mode].ubrz[k], d: P[mode].dana[k], n: (P[mode].puta || [])[k] || 1 } : { u: (V['ubrz' + mode] || [])[k], d: 0, n: 1, cel: 1 }]));
+  PLV = new Map(pt ? (P[mode].plavo || []).map((i, k) => [i, { s: P[mode].uk[k], d: (P[mode].ukd || [])[k], p: (P[mode].ukp || [])[k] }]) : (V['plavo' + mode] || []).map((i, k) => [i, V['uk' + mode][k]])); const kasnije = [];
+  const add = (lat, lon, v, i, r) => { const s = SKOK.has(i), np = !s && NEP.has(i), m = L.circleMarker([lat, lon], { radius: s ? rLj(r, SKOK.get(i).n) : r, puta: s ? SKOK.get(i).n : 0, nep: np, color: s ? '#fff' : np ? '#000' : '#111', weight: s ? 1.6 : np ? 1.5 : .6, fillColor: s ? LJ : PLV.has(i) ? PL : boja(v), fillOpacity: .95, skok: s });
+    m.on('click', () => pick(i, m)); if (s) kasnije.push(m); else layer.addLayer(m); };
+  if (pt) { const p = P[mode]; for (let i = 0, r = rad(8); i < p.lon.length; i++) add(p.lat[i], p.lon[i], p.v[i], i, r); $('upd').textContent = 'Zadnji snimak: ' + M.geo[mode].zadnja + ' · ' + p.lon.length + ' tačaka'; }
+  else { const v = mode === 'U' ? V.vU : V.vE; for (let i = 0, r = rad(15); i < V.lon.length; i++) add(V.lat[i], V.lon[i], v[i], i, r); $('upd').textContent = 'Zadnji mjesec: ' + M.vert.zadnji + ' · ' + V.lon.length + ' ćelija'; }
+  kasnije.forEach(m => layer.addLayer(m));   // ljubičaste iznad ostalih
+  $('nsk').textContent = pt ? 'ubrzanje u zadnjih 6–12 dana (≥ ' + M.pragovi.ljubicasto_los_mm + ' mm): ' + SKOK.size + ' (veći krug = više mjerenja zaredom)' : mode === 'U' ? 'ubrzanje u zadnjem mjesecu (≥ ' + M.pragovi.ljubicasto_vertikalno_mm + ' mm): ' + SKOK.size : 'ubrzanje: u prikazu Asc / Desc / Vertikalno';
+  $('npl').textContent = (pt ? 'lokalno trajno slijeganje jedne tačke ili grupe tačaka (≥ 3,5–8 mm prema koherenciji), potvrđeno u asc i desc: ' : 'lokalno trajno vertikalno slijeganje ≥ ' + M.pragovi.plavo_skok_vertikalno_mm + ' mm (uz stručni pregled): ') + PLV.size;
   layer.addTo(map);
 }
 async function series(i) {
   if (mode === 'U' || mode === 'E') return { t: V.mjeseci.map(m => m + '-15'), y: V[mode][i].map(x => x == null ? null : x / 10) };
   const g = M.geo[mode], T = g.epohe.length;
-  if (!TS[mode]) { $('note').textContent = 'Učitavanje vremenskih nizova…'; TS[mode] = new Int16Array(await (await fetch('data/' + mode + '_ts.bin', { cache: 'no-cache' })).arrayBuffer()); }
-  return { t: g.epohe, y: Array.from(TS[mode].subarray(i * T, (i + 1) * T), x => x === -32768 ? null : x / 10) };
+  const B = g.ts_blok || 0, kb = B ? Math.floor(i / B) : 0, key = mode + '_' + kb, j = B ? i - kb * B : i;   // nizovi u blokovima od B tačaka (manje preuzimanje na telefonu)
+  if (!TS[key]) { $('note').textContent = 'Učitavanje vremenskog niza…'; TS[key] = new Int16Array(await (await fetch('data/' + mode + (B ? '_ts_' + kb : '_ts') + '.bin', { cache: 'no-cache' })).arrayBuffer()); }
+  return { t: g.epohe, y: Array.from(TS[key].subarray(j * T, (j + 1) * T), x => x === -32768 ? null : x / 10) };
 }
 async function pick(i, m) {
-  if (selM) selM.setStyle({ color: '#111', weight: .6 }); selM = m; m.setStyle({ color: '#00e5ff', weight: 3 }); m.bringToFront();
+  if (selM) selM.setStyle(st0(selM)); selM = m; m.setStyle({ color: '#00e5ff', weight: 3 }); m.bringToFront();
+  const v12 = mode === 'asc' || mode === 'desc' ? P[mode].v12[i] : null;
+  $('skok').hidden = !SKOK.has(i) && !PLV.has(i); if (SKOK.has(i)) { const q = SKOK.get(i); $('skok').textContent = q.cel ? 'Ubrzanje: u zadnjem mjesecu vertikalni pomak je ' + q.u.toFixed(1) + ' mm veći od trenda prethodnih 12 mjeseci.' : 'Ubrzanje: u zadnjih ' + q.d + ' dana pomak je ' + q.u.toFixed(1) + ' mm veći od trenda zadnjih 12 mjeseci (' + fmt(v12) + ' mm/god). Ljubičasta ' + (q.n > 1 ? q.n + ' mjerenja zaredom' : 'prvi put') + '; ostaje do sljedećeg mjerenja.'; }
+  else if (PLV.has(i)) { const q = PLV.get(i); $('skok').textContent = q.s != null && cellQ() ? 'Plavo: lokalno trajno vertikalno slijeganje ' + fmt(q.s) + ' mm, početak oko ' + q.d + ' (srednja vrijednost tačaka ćelije, asc + desc) – npr. građevinski zahvat ili iskop. ' + (q.p ? 'Potvrđeno stručnim pregledom.' : 'Automatski kandidat – nije pregledano.') : q.n ? 'Plavo: u ćeliji je ' + q.n + ' tačaka s lokalnim trajnim skokom (≥ ' + M.pragovi.plavo_skok_mm + ' mm, potvrđeno u asc i desc) – pogledati tačke u prikazu Asc / Desc.' : 'Plavo: lokalno trajno slijeganje ' + fmt(q.s) + ' mm, početak oko ' + q.d + ' (nivo ostaje; potvrđen u drugoj geometriji) – npr. građevinski zahvat ili iskop. ' + (q.p ? 'Potvrđeno stručnim pregledom.' : 'Automatski kandidat – nije pregledano.'); }
   const cell = mode === 'U' || mode === 'E', lat = cell ? V.lat[i] : P[mode].lat[i], lon = cell ? V.lon[i] : P[mode].lon[i];
-  $('ttl').textContent = NAZ[mode] + (cell ? ' · ćelija' : ' · tačka ' + (i + 1)); $('sub').textContent = lat.toFixed(5) + ' N, ' + lon.toFixed(5) + ' E'; $('sheet').classList.add('on');
+  $('ttl').textContent = NAZ[mode] + (cell ? ' · ćelija' : ' · tačka ' + (i + 1)) + (!cell && NEP.has(i) ? ' · NEPOUZDANA (koherencija < 0,5)' : ''); $('sub').textContent = lat.toFixed(5) + ' N, ' + lon.toFixed(5) + ' E'; $('sheet').classList.add('on');
+  if (innerWidth < 900) { const py = map.latLngToContainerPoint([lat, lon]).y, vis = map.getSize().y - $('sheet').offsetHeight - 40; if (py > vis) map.panBy([0, py - vis / 2], { animate: true }); }   // da izabrana tačka ne ostane ispod panela
   const s = await series(i), T0 = Date.parse(s.t[0]), x = s.t.map(d => (Date.parse(d) - T0) / 31557600000), ok = s.y.map((v, k) => v == null ? -1 : k).filter(k => k >= 0);
   let sx = 0, sy = 0, sxx = 0, sxy = 0; ok.forEach(k => { sx += x[k]; sy += s.y[k]; sxx += x[k] * x[k]; sxy += x[k] * s.y[k]; });
   const n = ok.length, b = (n * sxy - sx * sy) / (n * sxx - sx * sx), a = (sy - b * sx) / n, last = ok[ok.length - 1];
   $('sv').textContent = fmt(b) + ' mm/god'; $('sd').textContent = fmt(s.y[last] - s.y[ok[0]], 0) + ' mm';
-  if (cell) { $('lc').textContent = 'Tačaka asc / desc'; $('sc').textContent = V.n[i][0] + ' / ' + V.n[i][1]; } else { $('lc').textContent = 'Koherencija'; $('sc').textContent = P[mode].coh[i].toFixed(2); }
-  $('note').textContent = OPIS[mode] + ' Zadnje mjerenje: ' + s.t[last].slice(0, cell ? 7 : 10) + '. Nula = prva epoha. Referenca: zona uz Miljacku.';
+  if (cell) { $('lc').textContent = 'Tačaka · koherencija (asc / desc)'; $('sc').textContent = V.n[i][0] + ' / ' + V.n[i][1] + (V.koh ? ' · ' + V.koh[i][0].toFixed(2) + ' / ' + V.koh[i][1].toFixed(2) : ''); } else { $('lc').textContent = 'Koherencija'; $('sc').textContent = P[mode].coh[i].toFixed(2); }
+  $('note').textContent = OPIS[mode] + (v12 != null ? ' Brzina zadnjih 12 mj.: ' + fmt(v12) + ' mm/god.' : '') + ' Zadnje mjerenje: ' + s.t[last].slice(0, cell ? 7 : 10) + '. Nula = prva epoha. Referenca: zona uz Miljacku.';
   const css = getComputedStyle(document.documentElement), fg = css.getPropertyValue('--fg').trim(), ln = css.getPropertyValue('--line').trim(), ac = css.getPropertyValue('--acc').trim();
   const pts = s.t.map((d, k) => ({ x: Date.parse(d), y: s.y[k] })), tr = [{ x: Date.parse(s.t[ok[0]]), y: a + b * x[ok[0]] }, { x: Date.parse(s.t[last]), y: a + b * x[last] }];
   if (chart) chart.destroy();
@@ -107,10 +170,38 @@ async function pick(i, m) {
     options: { responsive: true, maintainAspectRatio: false, animation: false, parsing: false, interaction: { mode: 'nearest', intersect: false },
       plugins: { legend: { labels: { color: fg, boxWidth: 18, font: { size: 12 } } }, tooltip: { callbacks: { title: it => new Date(it[0].parsed.x).toISOString().slice(0, 10), label: it => fmt(it.parsed.y) + ' mm' } } },
       scales: { x: { type: 'linear', min: Date.UTC(new Date(pts[0].x).getUTCFullYear(), 0, 1), max: Date.UTC(new Date(pts[pts.length - 1].x).getUTCFullYear() + 1, 0, 1), ticks: { color: fg, stepSize: 2 * 31557600000, callback: v => new Date(v + 43200000).getUTCFullYear() }, grid: { color: ln } }, y: { ticks: { color: fg }, grid: { color: ln }, title: { display: true, text: 'mm', color: fg } } } } });
+  // ---- uvećano: zadnja 3 mjeseca (ćelije su mjesečne, pa za njih 6 mjeseci) ----
+  const dan = 86400000, Tl = Date.parse(s.t[last]), dug = cell ? 183 : 92, w = ok.filter(k => Date.parse(s.t[k]) >= Tl - dug * dan);
+  if (chart3) { chart3.destroy(); chart3 = null; }
+  if (w.length < 3) { $('h3').textContent = (cell ? 'Zadnjih 6 mjeseci' : 'Zadnja 3 mjeseca') + ': premalo mjerenja za trend'; return; }
+  const y0 = s.y[w[0]], p3 = w.map(k => ({ x: Date.parse(s.t[k]), y: s.y[k] - y0 }));
+  let qx = 0, qy = 0, qxx = 0, qxy = 0; p3.forEach(p => { const u = (p.x - p3[0].x) / 31557600000; qx += u; qy += p.y; qxx += u * u; qxy += u * p.y; });
+  const nq = p3.length, b3 = (nq * qxy - qx * qy) / (nq * qxx - qx * qx), a3 = (qy - b3 * qx) / nq, u1 = (p3[nq - 1].x - p3[0].x) / 31557600000;
+  $('h3').innerHTML = '<b>' + (cell ? 'Zadnjih 6 mjeseci' : 'Zadnja 3 mjeseca') + '</b> · trend ' + fmt(b3) + ' mm/god · ' + nq + ' mjerenja <span class="mut">(kratak period – šum je veći nego na cijelom nizu)</span>';
+  const ddmm = v => { const d = new Date(v); return d.getUTCDate() + '.' + (d.getUTCMonth() + 1) + '.'; };
+  chart3 = new Chart($('ch3'), { type: 'line', data: { datasets: [
+      { label: 'Pomak [mm]', data: p3, borderColor: ac, backgroundColor: ac, borderWidth: 1.5, pointRadius: 3, tension: 0 },
+      { label: 'Trend', data: [{ x: p3[0].x, y: a3 }, { x: p3[nq - 1].x, y: a3 + b3 * u1 }], borderColor: '#d62728', borderWidth: 2, borderDash: [6, 4], pointRadius: 0 }] },
+    options: { responsive: true, maintainAspectRatio: false, animation: false, parsing: false, interaction: { mode: 'nearest', intersect: false },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { title: it => new Date(it[0].parsed.x).toISOString().slice(0, 10), label: it => fmt(it.parsed.y) + ' mm' } } },
+      scales: { x: { type: 'linear', min: Tl - dug * dan, max: Tl + 3 * dan, ticks: { color: fg, maxTicksLimit: 6, callback: ddmm }, grid: { color: ln } }, y: { ticks: { color: fg }, grid: { color: ln }, title: { display: true, text: 'mm (od početka perioda)', color: fg } } } } });
 }
 document.querySelectorAll('#seg button').forEach(bt => bt.addEventListener('click', () => { mode = bt.dataset.m; document.querySelectorAll('#seg button').forEach(q => q.classList.toggle('on', q === bt)); $('sheet').classList.remove('on'); draw(); }));
-$('x').addEventListener('click', () => { $('sheet').classList.remove('on'); if (selM) { selM.setStyle({ color: '#111', weight: .6 }); selM = null; } });
+$('x').addEventListener('click', () => { $('sheet').classList.remove('on'); if (selM) { selM.setStyle(st0(selM)); selM = null; } });
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+// ---- instalacija na početni ekran (iPhone: Dijeli → Dodaj na početni ekran; Android/računar: dugme) ----
+(() => {
+  const sa = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; if (sa) return;
+  let odb = 0; try { odb = +localStorage.getItem('instOdb') || 0; } catch (e) {}
+  if (Date.now() - odb < 14 * 864e5) return;
+  const box = $('inst'), zat = () => { box.hidden = true; try { localStorage.setItem('instOdb', String(Date.now())); } catch (e) {} };
+  box.querySelector('.zx').addEventListener('click', zat);
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (ios) { $('insttx').textContent = 'Za otvaranje kao aplikacija preko cijelog ekrana: u Safariju dodirni Dijeli (kvadrat sa strelicom) pa „Dodaj na početni ekran“.'; setTimeout(() => box.hidden = false, 2500); return; }
+  let ev = null; addEventListener('beforeinstallprompt', e => { e.preventDefault(); ev = e; $('insttx').textContent = 'Dodaj Sarajevo InSAR na početni ekran – otvara se kao aplikacija, bez adresne trake.'; $('instok').hidden = false; box.hidden = false; });
+  $('instok').addEventListener('click', async () => { if (!ev) return; ev.prompt(); await ev.userChoice.catch(() => {}); ev = null; box.hidden = true; });
+  addEventListener('appinstalled', () => { box.hidden = true; });
+})();
 init();
 </script>
 </body>
